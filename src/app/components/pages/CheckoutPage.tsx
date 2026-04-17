@@ -3,8 +3,6 @@ import {
   updateCart,
   addShippingMethod,
   fetchShippingOptions,
-  createPaymentCollection,
-  initPaymentSession,
   authorizePaymentSession,
   completeCart,
   forceNewCart,
@@ -238,14 +236,12 @@ function CheckoutPage() {
     }
   };
 
-  // handleMedusaCheckout mit vollständiger Logik
+  // handleMedusaCheckout – optimiert: nur 2 API-Calls (update + shipping parallel, dann complete)
   const handleMedusaCheckout = async (cartId: string) => {
     try {
       setStep("processing");
       setProcessingSubStep("creating");
 
-      // 1. Update cart with customer data
-      setProcessingSubStep("creating");
       const address: MedusaAddress = {
         first_name: form.firstName,
         last_name: form.lastName,
@@ -256,52 +252,37 @@ function CheckoutPage() {
         phone: form.phone || undefined,
       };
 
-      const updatedCart = await updateCart(cartId, {
+      // 1. Update cart + add shipping in parallel
+      const updatePromise = updateCart(cartId, {
         email: form.email,
         shipping_address: isPickup ? undefined : address,
         billing_address: isPickup ? undefined : address,
       });
 
+      const shippingPromise = (!isPickup && selectedShippingId)
+        ? addShippingMethod(cartId, selectedShippingId)
+        : Promise.resolve(true);
+
+      const [updatedCart, shippedCart] = await Promise.all([updatePromise, shippingPromise]);
+
       if (!updatedCart) {
         throw new Error("Warenkorb konnte nicht aktualisiert werden.");
       }
-
-      // 2. Add shipping method if not pickup
-      setProcessingSubStep("shipping");
-      if (!isPickup && selectedShippingId) {
-        const shippedCart = await addShippingMethod(cartId, selectedShippingId);
-        if (!shippedCart) {
-          throw new Error("Versandoption konnte nicht hinzugefügt werden.");
-        }
+      if (!isPickup && selectedShippingId && !shippedCart) {
+        throw new Error("Versandoption konnte nicht hinzugefügt werden.");
       }
 
-      // 3. Create payment collection
-      setProcessingSubStep("payment");
-      const paymentCollection = await createPaymentCollection(cartId);
-      if (!paymentCollection) {
-        throw new Error("Zahlungssammlung konnte nicht erstellt werden.");
-      }
-
-      // 4. Initialize payment session (required by Medusa v2)
-      const paymentSession = await initPaymentSession(
-        paymentCollection.id,
-        "pp_system_default"
-      );
-      if (!paymentSession) {
-        throw new Error("Zahlungssitzung konnte nicht initialisiert werden.");
-      }
-
-      // 5. Complete the cart → creates order (backend handles payment authorization internally)
+      // 2. Complete the cart (backend handles payment collection + session + authorize + complete)
       setProcessingSubStep("completing");
       const order = await completeCart(cartId);
 
       if (order) {
-        // Send confirmation email
-        await sendOrderConfirmation({
+        // Send confirmation email fire-and-forget (don't block navigation)
+        sendOrderConfirmation({
           order_id: (order as any)._was409 ? undefined : order.id,
           email: form.email,
           _was409: (order as any)._was409,
-        });
+        }).catch((e) => console.warn("[Email] Failed:", e));
 
         clearCart();
         navigate("/bestellung-bestaetigt", {
