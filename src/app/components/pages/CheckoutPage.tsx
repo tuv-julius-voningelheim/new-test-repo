@@ -281,7 +281,25 @@ function CheckoutPage() {
         throw new Error("Zahlungssammlung konnte nicht erstellt werden.");
       }
 
-      // 4. Complete the cart → creates order
+      // 4. Initialize payment session (required by Medusa v2)
+      const paymentSession = await initPaymentSession(
+        paymentCollection.id,
+        "pp_system_default"
+      );
+      if (!paymentSession) {
+        throw new Error("Zahlungssitzung konnte nicht initialisiert werden.");
+      }
+
+      // 5. Authorize payment session (required before cart completion)
+      const authResult = await authorizePaymentSession(
+        paymentCollection.id,
+        paymentSession.id
+      );
+      if (!authResult) {
+        throw new Error("Zahlungssitzung konnte nicht autorisiert werden.");
+      }
+
+      // 6. Complete the cart → creates order
       setProcessingSubStep("completing");
       const order = await completeCart(cartId);
 

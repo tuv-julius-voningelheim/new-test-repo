@@ -40,7 +40,7 @@ export function PromotionCodeInput({ cartId, onCartUpdate }: PromotionCodeInputP
         
         // If we got a cart back, the code was accepted by the backend
         setStatus("success");
-        const discountText = discountTotal > 0 ? ` (-${(discountTotal / 100).toFixed(2).replace(".", ",")}€)` : "";
+        const discountText = discountTotal > 0 ? ` (-${discountTotal.toFixed(2).replace(".", ",")}€)` : "";
         setMessage(`Promotion-Code "${code.trim().toUpperCase()}" erfolgreich angewendet!${discountText}`);
         setAppliedCodes(prev => [...prev, code.trim().toUpperCase()]);
         setCode("");
