@@ -303,7 +303,7 @@ export async function addPromoCode(
 ): Promise<MedusaCart | null> {
   if (!IS_BACKEND_ENABLED) return null;
 
-  const url = `${STORE_API}/carts/${cartId}/promotions`;
+  const url = `${STORE_API}/apply-promo`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -312,7 +312,7 @@ export async function addPromoCode(
         ? { "x-publishable-api-key": MEDUSA_PUBLISHABLE_KEY }
         : {}),
     },
-    body: JSON.stringify({ promo_codes: promoCodes }),
+    body: JSON.stringify({ cart_id: cartId, promo_codes: promoCodes }),
   });
 
   if (!res.ok) {
