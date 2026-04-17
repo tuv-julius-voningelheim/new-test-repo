@@ -103,7 +103,7 @@ export function HomePage() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/unsere-geschichte"
+                to="/unsere-tradition"
                 className="inline-flex items-center gap-2 border border-white/30 text-white px-7 py-3.5 rounded-lg hover:bg-white/10 transition-colors"
               >
                 Unsere Geschichte
@@ -241,7 +241,7 @@ export function HomePage() {
                 </p>
               </div>
               <Link
-                to="/unsere-geschichte"
+                to="/unsere-tradition"
                 className="inline-flex items-center gap-2 mt-6 text-olive-500 hover:text-olive-600 transition-colors"
               >
                 Mehr erfahren

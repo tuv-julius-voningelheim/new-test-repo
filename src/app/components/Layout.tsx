@@ -11,7 +11,7 @@ const LOGO_URL = "https://ik.imagekit.io/iu69j6qea/logo-des-herstellers-von-extr
 const navLinks = [
   { to: "/", label: "Home" },
   { to: "/shop", label: "Shop" },
-  { to: "/unsere-geschichte", label: "Unsere Geschichte" },
+  { to: "/unsere-tradition", label: "Unsere Geschichte" },
   { to: "/kontakt", label: "Kontakt" },
 ];
 
@@ -208,7 +208,7 @@ export function Layout() {
                 Information
               </h4>
               <div className="space-y-2.5">
-                <Link to="/unsere-geschichte" className="block text-sm hover:text-white transition-colors">
+                <Link to="/unsere-tradition" className="block text-sm hover:text-white transition-colors">
                   Unsere Geschichte
                 </Link>
                 <Link to="/kontakt" className="block text-sm hover:text-white transition-colors">

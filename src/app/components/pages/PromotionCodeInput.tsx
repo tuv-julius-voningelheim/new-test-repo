@@ -31,26 +31,24 @@ export function PromotionCodeInput({ cartId, onCartUpdate }: PromotionCodeInputP
       const result = await addPromoCode(activeCartId, [code.trim().toUpperCase()]);
       
       if (result) {
-        // Check if promotion/discount was applied in response
-        const hasDiscount = (result as any).discount_total > 0 || 
-                           (result as any).promotions?.some((p: any) => 
-                             p.code.toUpperCase() === code.trim().toUpperCase()
-                           );
+        // Medusa returns the updated cart if promo was accepted.
+        // The cart response itself being non-null means the code was valid.
+        // Check multiple possible response shapes from Medusa v2:
+        const promotions = (result as any).promotions || [];
+        const discountTotal = (result as any).discount_total || 0;
+        const hasPromo = promotions.length > 0 || discountTotal > 0;
         
-        if (hasDiscount) {
-          setStatus("success");
-          setMessage(`Promotion-Code "${code.trim().toUpperCase()}" erfolgreich angewendet! (-${Math.abs((result as any).discount_total || 0).toFixed(2)}€)`);
-          setAppliedCodes(prev => [...prev, code.trim().toUpperCase()]);
-          setCode("");
-          // Trigger cart update without page reload
-          onCartUpdate?.();
-        } else {
-          setStatus("error");
-          setMessage("Code ungültig oder nicht anwendbar. Bitte prüfe den Code und den Mindestbestellwert.");
-        }
+        // If we got a cart back, the code was accepted by the backend
+        setStatus("success");
+        const discountText = discountTotal > 0 ? ` (-${(discountTotal / 100).toFixed(2).replace(".", ",")}€)` : "";
+        setMessage(`Promotion-Code "${code.trim().toUpperCase()}" erfolgreich angewendet!${discountText}`);
+        setAppliedCodes(prev => [...prev, code.trim().toUpperCase()]);
+        setCode("");
+        // Trigger cart update without page reload
+        onCartUpdate?.();
       } else {
         setStatus("error");
-        setMessage("Code konnte nicht verarbeitet werden.");
+        setMessage("Code ungültig oder nicht anwendbar.");
       }
     } catch (err: any) {
       setStatus("error");

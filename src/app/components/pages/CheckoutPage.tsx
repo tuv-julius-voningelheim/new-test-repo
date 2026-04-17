@@ -43,7 +43,7 @@ const availablePaymentMethods = [
   {
     id: "vorkasse",
     label: "Vorkasse (Überweisung)",
-    desc: "Zahlung vor Versand",
+    desc: "Zahlung vor Versand per Banküberweisung",
     icon: DollarSign,
   },
   {
@@ -53,10 +53,10 @@ const availablePaymentMethods = [
     icon: CreditCard,
   },
   {
-    id: "heartbeat",
-    label: "Merkzettel",
-    desc: "Für später speichern",
-    icon: Heart,
+    id: "bar",
+    label: "Barzahlung bei Abholung",
+    desc: "Zahlung bei Abholung vor Ort in bar",
+    icon: Store,
   },
 ];
 
@@ -136,7 +136,7 @@ function CheckoutPage() {
   // Refs & Konstanten
   const shippingOptionsCacheRef = useRef<Record<string, any[]>>({});
   const FREE_SHIPPING_MIN = 50;
-  const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || "";
+  const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
   const PROCESSING_STEPS = [
     { key: "creating", label: "Warenkorb wird erstellt" },
     { key: "shipping", label: "Versandoption wird hinzugefügt" },
@@ -178,9 +178,9 @@ function CheckoutPage() {
   const finalShippingCost = calculateShipping();
   const grandTotal = totalPrice + finalShippingCost;
 
-  // Load shipping options when cart changes
+  // Load shipping options and auto-select based on cart total & pickup
   useEffect(() => {
-    if (!IS_BACKEND_ENABLED || !medusaCartId || isPickup) return;
+    if (!IS_BACKEND_ENABLED || !medusaCartId) return;
 
     const loadShippingOptions = async () => {
       try {
@@ -188,15 +188,28 @@ function CheckoutPage() {
         if (options && options.length > 0) {
           shippingOptionsCacheRef.current[medusaCartId] = options;
           
-          // Automatically select first option if not already selected
-          if (!selectedShippingId) {
+          // Auto-select shipping: Backend sends amount already in EUR (e.g. 5.9 = 5,90€)
+          // Find free shipping and standard shipping options
+          const freeOption = options.find((o: any) => o.amount === 0 || o.name?.toLowerCase().includes("kostenlos") || o.name?.toLowerCase().includes("free"));
+          const pickupOption = options.find((o: any) => o.name?.toLowerCase().includes("abhol") || o.name?.toLowerCase().includes("pickup"));
+          const standardOption = options.find((o: any) => o.amount > 0 && !o.name?.toLowerCase().includes("abhol"));
+
+          if (isPickup && pickupOption) {
+            // Abholung → kostenlose Abholung
+            setSelectedShippingId(pickupOption.id);
+            setShippingCost(0);
+          } else if (!isPickup && totalPrice >= FREE_SHIPPING_MIN && freeOption) {
+            // >50€ → kostenloser Versand
+            setSelectedShippingId(freeOption.id);
+            setShippingCost(0);
+          } else if (!isPickup && standardOption) {
+            // <50€ → Standardversand (Backend liefert amount in EUR)
+            setSelectedShippingId(standardOption.id);
+            setShippingCost(standardOption.amount);
+          } else if (options[0]) {
+            // Fallback: erste Option
             setSelectedShippingId(options[0].id);
-            const baseAmount = options[0].amount / 100;
-            if (totalPrice >= FREE_SHIPPING_MIN) {
-              setShippingCost(0);
-            } else {
-              setShippingCost(baseAmount);
-            }
+            setShippingCost(options[0].amount);
           }
         }
       } catch (err) {
@@ -865,10 +878,10 @@ function CheckoutPage() {
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Versand</span>
                         <span>
-                          {shippingCost === 0 ? (
+                          {finalShippingCost === 0 ? (
                             <span className="text-olive-500">Kostenlos</span>
                           ) : (
-                            `${shippingCost.toFixed(2).replace(".", ",")} €`
+                            `${finalShippingCost.toFixed(2).replace(".", ",")} €`
                           )}
                         </span>
                       </div>
