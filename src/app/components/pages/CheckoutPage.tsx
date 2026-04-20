@@ -252,24 +252,23 @@ function CheckoutPage() {
         phone: form.phone || undefined,
       };
 
-      // 1. Update cart + add shipping in parallel
-      const updatePromise = updateCart(cartId, {
+      // 1. Update cart with customer data
+      const updatedCart = await updateCart(cartId, {
         email: form.email,
         shipping_address: isPickup ? undefined : address,
         billing_address: isPickup ? undefined : address,
       });
 
-      const shippingPromise = (!isPickup && selectedShippingId)
-        ? addShippingMethod(cartId, selectedShippingId)
-        : Promise.resolve(true);
-
-      const [updatedCart, shippedCart] = await Promise.all([updatePromise, shippingPromise]);
-
       if (!updatedCart) {
         throw new Error("Warenkorb konnte nicht aktualisiert werden.");
       }
-      if (!isPickup && selectedShippingId && !shippedCart) {
-        throw new Error("Versandoption konnte nicht hinzugefügt werden.");
+
+      // 2. Add shipping method (must be sequential - Medusa has race conditions with parallel cart mutations)
+      if (!isPickup && selectedShippingId) {
+        const shippedCart = await addShippingMethod(cartId, selectedShippingId);
+        if (!shippedCart) {
+          throw new Error("Versandoption konnte nicht hinzugefügt werden.");
+        }
       }
 
       // 2. Complete the cart (backend handles payment collection + session + authorize + complete)
