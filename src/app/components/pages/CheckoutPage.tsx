@@ -3,6 +3,8 @@ import {
   updateCart,
   addShippingMethod,
   fetchShippingOptions,
+  createPaymentCollection,
+  initPaymentSession,
   authorizePaymentSession,
   completeCart,
   forceNewCart,
@@ -327,6 +329,74 @@ function CheckoutPage() {
     }, 600);
   };
 
+  // --- PayPal: prepare cart and redirect to PayPal ---
+  const handlePayPalCheckout = async (cartId: string) => {
+    try {
+      setStep("processing");
+      setProcessingSubStep("creating");
+
+      const address: MedusaAddress = {
+        first_name: form.firstName,
+        last_name: form.lastName,
+        address_1: form.street,
+        city: form.city,
+        postal_code: form.zip,
+        country_code: form.country.toLowerCase(),
+        phone: form.phone || undefined,
+      };
+
+      // 1. Update cart
+      const updatedCart = await updateCart(cartId, {
+        email: form.email,
+        shipping_address: isPickup ? undefined : address,
+        billing_address: isPickup ? undefined : address,
+      });
+      if (!updatedCart) throw new Error("Warenkorb konnte nicht aktualisiert werden.");
+
+      // 2. Add shipping
+      if (!isPickup && selectedShippingId) {
+        const shippedCart = await addShippingMethod(cartId, selectedShippingId);
+        if (!shippedCart) throw new Error("Versandoption konnte nicht hinzugefügt werden.");
+      }
+
+      // 3. Create payment collection
+      setProcessingSubStep("payment");
+      const paymentCollection = await createPaymentCollection(cartId);
+      if (!paymentCollection) throw new Error("Zahlungssammlung konnte nicht erstellt werden.");
+
+      // 4. Init PayPal payment session
+      const paymentSession = await initPaymentSession(paymentCollection.id, "pp_paypal_paypal");
+      if (!paymentSession) throw new Error("PayPal-Sitzung konnte nicht erstellt werden.");
+
+      // 5. Extract PayPal approval URL from session data
+      const approvalUrl = (paymentSession.data as any)?.approval_url
+        || (paymentSession.data as any)?.links?.find((l: any) => l.rel === "approve")?.href;
+      const ppOrderId = (paymentSession.data as any)?.id;
+
+      if (approvalUrl) {
+        // Save state for when user returns from PayPal
+        setPaypalOrderId(ppOrderId || null);
+        setPaypalCollectionId(paymentCollection.id);
+        setPaypalSessionId(paymentSession.id);
+        setPaypalCartId(cartId);
+        // Redirect to PayPal
+        window.location.href = approvalUrl;
+      } else if (ppOrderId) {
+        // No redirect URL but have order ID – show inline PayPal buttons
+        setPaypalOrderId(ppOrderId);
+        setPaypalCollectionId(paymentCollection.id);
+        setPaypalSessionId(paymentSession.id);
+        setPaypalCartId(cartId);
+        setStep("paypal-approve");
+      } else {
+        throw new Error("PayPal-Sitzung enthält keine Weiterleitungs-URL.");
+      }
+    } catch (err: any) {
+      setStep("error");
+      setCheckoutError(err?.message || "PayPal-Checkout fehlgeschlagen.");
+    }
+  };
+
   // --- PayPal: after user approves in PayPal popup ---
   const handlePayPalApprove = async () => {
     if (!paypalCollectionId || !paypalSessionId || !paypalCartId) return;
@@ -347,7 +417,11 @@ function CheckoutPage() {
 
       if (order) {
         const was409 = (order as any)._was409 === true;
-        // persistOrder entfernt: Funktion nicht definiert, nicht benötigt
+        sendOrderConfirmation({
+          order_id: was409 ? undefined : order.id,
+          email: form.email,
+          _was409: was409,
+        }).catch((e) => console.warn("[Email] Failed:", e));
         clearCart();
         navigate("/bestellung-bestaetigt", {
           state: {
@@ -395,7 +469,11 @@ function CheckoutPage() {
       if (IS_BACKEND_ENABLED) {
         const cartId = medusaCartId || (await ensureMedusaCart());
         if (cartId) {
-          await handleMedusaCheckout(cartId);
+          if (payment === "paypal") {
+            await handlePayPalCheckout(cartId);
+          } else {
+            await handleMedusaCheckout(cartId);
+          }
         } else {
           handleLocalCheckout();
         }
