@@ -112,7 +112,7 @@ function CheckoutPage() {
     notes: "",
   });
   const [errors, setErrors] = useState<any>({});
-  const [payment, setPayment] = useState("vorkasse");
+  const [payment, setPayment] = useState("paypal");
   const [deliveryMethod, setDeliveryMethod] = useState<"shipping" | "pickup">("shipping");
   // isPickup is derived: "bar" always pickup, otherwise user choice
   const isPickup = payment === "bar" || deliveryMethod === "pickup";
