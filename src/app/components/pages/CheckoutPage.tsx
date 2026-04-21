@@ -240,13 +240,14 @@ function CheckoutPage() {
   // Prefetch: create payment collection as soon as checkout loads
   const prefetchedPayColRef = useRef<boolean>(false);
   const payColIdRef = useRef<string | null>(null);
+  const [payColReady, setPayColReady] = useState(false);
   useEffect(() => {
     if (!IS_BACKEND_ENABLED || !medusaCartId || prefetchedPayColRef.current) return;
     prefetchedPayColRef.current = true;
     // Queue behind any existing operation
     cartOpRef.current = cartOpRef.current.then(() =>
       createPaymentCollection(medusaCartId).then((pc) => {
-        if (pc) { payColIdRef.current = pc.id; console.log("[Prefetch] Payment collection ready:", pc.id); }
+        if (pc) { payColIdRef.current = pc.id; setPayColReady(true); console.log("[Prefetch] Payment collection ready:", pc.id); }
       }).catch(() => {})
     );
   }, [medusaCartId]);
@@ -294,6 +295,10 @@ function CheckoutPage() {
           shipping_address: isPickup ? pickupAddress : address,
           billing_address: isPickup ? pickupAddress : address,
         });
+        if (!updatedCart) {
+          console.log("[Prefetch] updateCart returned null (cart may be completed)");
+          return;
+        }
         // Only add shipping if cart doesn't already have the right option
         const currentShippingOptionId = updatedCart?.shipping_methods?.[0]?.shipping_option_id;
         if (selectedShippingId && (!currentShippingOptionId || currentShippingOptionId !== selectedShippingId)) {
@@ -343,7 +348,7 @@ function CheckoutPage() {
         paypalPrefetchedRef.current = false;
       }
     });
-  }, [payment, medusaCartId, paypalOrderId, cartPreparedFlag]);
+  }, [payment, medusaCartId, paypalOrderId, cartPreparedFlag, payColReady]);
 
   // Versandoptionen-Handler
   const handleShippingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
