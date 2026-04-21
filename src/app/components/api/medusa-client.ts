@@ -377,11 +377,18 @@ export async function addShippingMethod(
 
 /** Complete checkout – creates the order */
 export async function completeCart(
-  cartId: string
+  cartId: string,
+  opts?: {
+    email?: string;
+    shipping_address?: MedusaAddress;
+    billing_address?: MedusaAddress;
+    shipping_option_id?: string;
+    payment_method?: string;
+  }
 ): Promise<MedusaOrder | null> {
   if (!IS_BACKEND_ENABLED) return null;
 
-  // Use custom complete-checkout endpoint which handles payment authorization internally
+  // Use custom complete-checkout endpoint which handles everything in one call
   const url = `${STORE_API}/complete-checkout`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -395,7 +402,7 @@ export async function completeCart(
     res = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ cart_id: cartId }),
+      body: JSON.stringify({ cart_id: cartId, ...opts }),
     });
   } catch (err) {
     console.warn("[Medusa] completeCart network error:", err);
@@ -547,6 +554,7 @@ export async function authorizePaymentSession(
 export async function sendOrderConfirmation(params: {
   order_id?: string;
   email?: string;
+  payment_method?: string;
   _was409?: boolean;
 }): Promise<boolean> {
   if (!IS_BACKEND_ENABLED) return false;
@@ -568,6 +576,7 @@ export async function sendOrderConfirmation(params: {
   const body: Record<string, string> = {};
   if (params.order_id) body.order_id = params.order_id;
   if (params.email) body.email = params.email;
+  if (params.payment_method) body.payment_method = params.payment_method;
 
   try {
     const res = await fetch(`${STORE_API}/send-confirmation`, {

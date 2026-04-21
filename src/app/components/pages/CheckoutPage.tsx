@@ -229,7 +229,7 @@ function CheckoutPage() {
     }
   };
 
-  // handleMedusaCheckout – optimiert: nur 2 API-Calls (update + shipping parallel, dann complete)
+  // handleMedusaCheckout – single API call: update + shipping + payment + complete
   const handleMedusaCheckout = async (cartId: string) => {
     try {
       setStep("processing");
@@ -245,34 +245,22 @@ function CheckoutPage() {
         phone: form.phone || undefined,
       };
 
-      // 1. Update cart with customer data
-      const updatedCart = await updateCart(cartId, {
+      // Single API call handles everything: update cart, add shipping, payment, complete
+      setProcessingSubStep("completing");
+      const order = await completeCart(cartId, {
         email: form.email,
         shipping_address: isPickup ? undefined : address,
         billing_address: isPickup ? undefined : address,
+        shipping_option_id: (!isPickup && selectedShippingId) ? selectedShippingId : undefined,
+        payment_method: payment,
       });
-
-      if (!updatedCart) {
-        throw new Error("Warenkorb konnte nicht aktualisiert werden.");
-      }
-
-      // 2. Add shipping method (must be sequential - Medusa has race conditions with parallel cart mutations)
-      if (!isPickup && selectedShippingId) {
-        const shippedCart = await addShippingMethod(cartId, selectedShippingId);
-        if (!shippedCart) {
-          throw new Error("Versandoption konnte nicht hinzugefügt werden.");
-        }
-      }
-
-      // 2. Complete the cart (backend handles payment collection + session + authorize + complete)
-      setProcessingSubStep("completing");
-      const order = await completeCart(cartId);
 
       if (order) {
         // Send confirmation email fire-and-forget (don't block navigation)
         sendOrderConfirmation({
           order_id: (order as any)._was409 ? undefined : order.id,
           email: form.email,
+          payment_method: payment,
           _was409: (order as any)._was409,
         }).catch((e) => console.warn("[Email] Failed:", e));
 
@@ -394,6 +382,7 @@ function CheckoutPage() {
         sendOrderConfirmation({
           order_id: was409 ? undefined : order.id,
           email: form.email,
+          payment_method: "paypal",
           _was409: was409,
         }).catch((e) => console.warn("[Email] Failed:", e));
         clearCart();
