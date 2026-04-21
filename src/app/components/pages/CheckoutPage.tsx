@@ -815,7 +815,10 @@ function CheckoutPage() {
                           name="payment"
                           value={pm.id}
                           checked={isActive}
-                          onChange={() => setPayment(pm.id)}
+                          onChange={() => {
+                            setPayment(pm.id);
+                            setIsPickup(pm.id === "bar");
+                          }}
                           disabled={step === "processing"}
                           className="sr-only"
                         />
