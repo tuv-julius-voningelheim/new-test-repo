@@ -389,6 +389,7 @@ function CheckoutPage() {
           email: form.email,
           payment_method: payment,
           is_pickup: isPickup,
+          billing_address: { first_name: form.firstName, last_name: form.lastName, address_1: form.street, postal_code: form.zip, city: form.city, country_code: form.country.toLowerCase() },
           _was409: (order as any)._was409,
         }).catch((e) => console.warn("[Email] Failed:", e));
 
@@ -523,6 +524,7 @@ function CheckoutPage() {
           email: form.email,
           payment_method: "paypal",
           is_pickup: isPickup,
+          billing_address: { first_name: form.firstName, last_name: form.lastName, address_1: form.street, postal_code: form.zip, city: form.city, country_code: form.country.toLowerCase() },
           _was409: was409,
         }).catch((e) => console.warn("[Email] Failed:", e));
         clearCart();

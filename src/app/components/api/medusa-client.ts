@@ -557,6 +557,7 @@ export async function sendOrderConfirmation(params: {
   email?: string;
   payment_method?: string;
   is_pickup?: boolean;
+  billing_address?: { first_name: string; last_name: string; address_1: string; postal_code: string; city: string; country_code: string };
   _was409?: boolean;
 }): Promise<boolean> {
   if (!IS_BACKEND_ENABLED) return false;
@@ -580,6 +581,7 @@ export async function sendOrderConfirmation(params: {
   if (params.email) body.email = params.email;
   if (params.payment_method) body.payment_method = params.payment_method;
   if (params.is_pickup !== undefined) body.is_pickup = params.is_pickup;
+  if (params.billing_address) body.billing_address = params.billing_address;
 
   try {
     const res = await fetch(`${STORE_API}/send-confirmation`, {
