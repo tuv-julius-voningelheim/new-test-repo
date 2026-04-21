@@ -477,7 +477,7 @@ function CheckoutPage() {
       setCheckoutError(null);
 
       // Complete the cart → backend handles authorization + order creation internally
-      const order = await completeCart(paypalCartId);
+      const order = await completeCart(paypalCartId, { payment_method: "paypal" });
 
       if (order) {
         const was409 = (order as any)._was409 === true;
