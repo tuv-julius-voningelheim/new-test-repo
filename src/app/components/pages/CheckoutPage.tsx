@@ -324,14 +324,15 @@ function CheckoutPage() {
     return () => { clearTimeout(timer); prefetchTimerRef.current = null; };
   }, [form.email, form.firstName, form.lastName, form.street, form.zip, form.city, form.country, isPickup, selectedShippingId, medusaCartId, step]);
 
-  // Prefetch: create PayPal session as soon as cart is prepared + PayPal selected
+  // Prefetch: create PayPal session as soon as payment collection is ready + PayPal selected
   const paypalPrefetchedRef = useRef<boolean>(false);
   useEffect(() => {
     if (!IS_BACKEND_ENABLED || !medusaCartId || payment !== "paypal" || paypalPrefetchedRef.current) return;
-    if (!payColIdRef.current || !cartPreparedFlag || paypalOrderId) return;
+    if (!payColIdRef.current || !payColReady || paypalOrderId) return;
     paypalPrefetchedRef.current = true;
-    console.log("[Prefetch] Starting PayPal session creation...");
-    cartOpRef.current = cartOpRef.current.then(async () => {
+    console.log("[Prefetch] Starting PayPal session creation (parallel with cart update)...");
+    // Don't queue behind cartOpRef — run independently
+    (async () => {
       try {
         // Try with existing payment collection
         let ps = await initPaymentSession(payColIdRef.current!, "pp_paypal_paypal");
@@ -358,8 +359,8 @@ function CheckoutPage() {
         console.log("[Prefetch] PayPal session prefetch failed");
         paypalPrefetchedRef.current = false;
       }
-    });
-  }, [payment, medusaCartId, paypalOrderId, cartPreparedFlag, payColReady]);
+    })();
+  }, [payment, medusaCartId, paypalOrderId, payColReady]);
 
   // Versandoptionen-Handler
   const handleShippingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
