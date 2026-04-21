@@ -264,12 +264,21 @@ function CheckoutPage() {
           country_code: form.country.toLowerCase(),
           phone: form.phone || undefined,
         };
+        const pickupAddress = {
+          first_name: form.firstName,
+          last_name: form.lastName,
+          address_1: "Abholung vor Ort",
+          city: "Horia",
+          postal_code: "1000",
+          country_code: "at",
+          phone: form.phone || undefined,
+        };
         await updateCart(medusaCartId, {
           email: form.email,
-          shipping_address: isPickup ? undefined : address,
-          billing_address: isPickup ? undefined : address,
+          shipping_address: isPickup ? pickupAddress : address,
+          billing_address: isPickup ? pickupAddress : address,
         });
-        if (!isPickup && selectedShippingId) {
+        if (selectedShippingId) {
           await addShippingMethod(medusaCartId, selectedShippingId);
         }
         cartPreparedRef.current = key;
@@ -321,9 +330,9 @@ function CheckoutPage() {
         payment_method: payment,
       } : {
         email: form.email,
-        shipping_address: isPickup ? undefined : address,
-        billing_address: isPickup ? undefined : address,
-        shipping_option_id: (!isPickup && selectedShippingId) ? selectedShippingId : undefined,
+        shipping_address: isPickup ? { first_name: form.firstName, last_name: form.lastName, address_1: "Abholung vor Ort", city: "Horia", postal_code: "1000", country_code: "at", phone: form.phone || undefined } : address,
+        billing_address: isPickup ? { first_name: form.firstName, last_name: form.lastName, address_1: "Abholung vor Ort", city: "Horia", postal_code: "1000", country_code: "at", phone: form.phone || undefined } : address,
+        shipping_option_id: selectedShippingId || undefined,
         payment_method: payment,
       });
 
@@ -397,14 +406,15 @@ function CheckoutPage() {
           country_code: form.country.toLowerCase(),
           phone: form.phone || undefined,
         };
+        const pickupAddr = { first_name: form.firstName, last_name: form.lastName, address_1: "Abholung vor Ort", city: "Horia", postal_code: "1000", country_code: "at", phone: form.phone || undefined };
         const updatedCart = await updateCart(cartId, {
           email: form.email,
-          shipping_address: isPickup ? undefined : address,
-          billing_address: isPickup ? undefined : address,
+          shipping_address: isPickup ? pickupAddr : address,
+          billing_address: isPickup ? pickupAddr : address,
         });
         if (!updatedCart) throw new Error("Warenkorb konnte nicht aktualisiert werden.");
 
-        if (!isPickup && selectedShippingId) {
+        if (selectedShippingId) {
           const shippedCart = await addShippingMethod(cartId, selectedShippingId);
           if (!shippedCart) throw new Error("Versandoption konnte nicht hinzugefügt werden.");
         }
