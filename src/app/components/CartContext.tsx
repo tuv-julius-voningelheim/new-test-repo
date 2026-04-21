@@ -152,7 +152,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     const stored = localStorage.getItem("tgo_medusa_cart_id");
     if (stored) {
-      setMedusaCartId(stored);
+      // Validate cart is still active before using it
+      validateCart(stored).then((cart) => {
+        if (cart) {
+          setMedusaCartId(stored);
+        } else {
+          // Cart is completed/expired — clear it
+          localStorage.removeItem("tgo_medusa_cart_id");
+          console.log("[Cart] Stale cart cleared:", stored);
+        }
+      }).catch(() => {
+        setMedusaCartId(stored); // Offline fallback: use stored ID
+      });
     }
   }, []);
 
