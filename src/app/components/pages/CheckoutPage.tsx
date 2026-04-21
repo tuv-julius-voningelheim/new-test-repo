@@ -283,9 +283,9 @@ function CheckoutPage() {
           shipping_address: isPickup ? pickupAddress : address,
           billing_address: isPickup ? pickupAddress : address,
         });
-        // Only add shipping if cart doesn't already have one
-        const hasShipping = updatedCart?.shipping_methods?.length ?? 0;
-        if (selectedShippingId && !hasShipping) {
+        // Only add shipping if cart doesn't already have one or has a different one
+        const currentShippingOptionId = updatedCart?.shipping_methods?.[0]?.shipping_option_id;
+        if (selectedShippingId && currentShippingOptionId !== selectedShippingId) {
           await addShippingMethod(medusaCartId, selectedShippingId);
         }
         cartPreparedRef.current = key;
@@ -297,7 +297,7 @@ function CheckoutPage() {
       }
       })();
       prefetchingRef.current = p;
-    }, 1500);
+    }, 2500);
     prefetchTimerRef.current = timer;
     return () => { clearTimeout(timer); prefetchTimerRef.current = null; };
   }, [form.email, form.firstName, form.lastName, form.street, form.zip, form.city, form.country, isPickup, selectedShippingId, medusaCartId, step]);
@@ -322,14 +322,21 @@ function CheckoutPage() {
   // handleMedusaCheckout – if prefetched, only complete; otherwise send all data
   const handleMedusaCheckout = async (cartId: string) => {
     try {
+      const ft0 = Date.now();
+      const ftick = (l: string) => console.log(`[FE] ${l}: ${Date.now() - ft0}ms`);
       setStep("processing");
       setProcessingSubStep("processing");
 
-      // Cancel pending prefetch timer and wait for in-flight prefetch
+      // Cancel pending prefetch timer and wait for in-flight prefetch (max 3s)
       if (prefetchTimerRef.current) { clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = null; }
-      if (prefetchingRef.current) { await prefetchingRef.current; }
+      if (prefetchingRef.current) {
+        await Promise.race([prefetchingRef.current, new Promise(r => setTimeout(r, 3000))]);
+        prefetchingRef.current = null;
+      }
+      ftick("prefetchWait");
 
       const isPrepared = !!cartPreparedRef.current;
+      ftick(`isPrepared=${isPrepared}`);
 
       const address: MedusaAddress = {
         first_name: form.firstName,
@@ -351,6 +358,7 @@ function CheckoutPage() {
         shipping_option_id: selectedShippingId || undefined,
         payment_method: payment,
       });
+      ftick("completeCartDone");
 
       if (order) {
         // Send confirmation email fire-and-forget (don't block navigation)
@@ -412,9 +420,12 @@ function CheckoutPage() {
       setStep("processing");
       setProcessingSubStep("processing");
 
-      // Cancel pending prefetch timer and wait for in-flight prefetch
+      // Cancel pending prefetch timer and wait for in-flight prefetch (max 3s)
       if (prefetchTimerRef.current) { clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = null; }
-      if (prefetchingRef.current) { await prefetchingRef.current; }
+      if (prefetchingRef.current) {
+        await Promise.race([prefetchingRef.current, new Promise(r => setTimeout(r, 3000))]);
+        prefetchingRef.current = null;
+      }
 
       // If cart wasn't prefetch-updated, do it now
       if (!cartPreparedRef.current) {
