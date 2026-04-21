@@ -241,6 +241,46 @@ function CheckoutPage() {
     }).catch(() => {});
   }, [medusaCartId]);
 
+  // Prefetch: update cart + add shipping in background when form is filled
+  const cartPreparedRef = useRef<string>("");
+  useEffect(() => {
+    if (!IS_BACKEND_ENABLED || !medusaCartId || step !== "form") return;
+    // Only when required fields are filled
+    const hasRequired = form.email && form.firstName && form.lastName &&
+      (isPickup || (form.street && form.zip && form.city));
+    if (!hasRequired) return;
+
+    const key = `${form.email}|${form.firstName}|${form.lastName}|${form.street}|${form.zip}|${form.city}|${form.country}|${isPickup}|${selectedShippingId}`;
+    if (cartPreparedRef.current === key) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const address = {
+          first_name: form.firstName,
+          last_name: form.lastName,
+          address_1: form.street,
+          city: form.city,
+          postal_code: form.zip,
+          country_code: form.country.toLowerCase(),
+          phone: form.phone || undefined,
+        };
+        await updateCart(medusaCartId, {
+          email: form.email,
+          shipping_address: isPickup ? undefined : address,
+          billing_address: isPickup ? undefined : address,
+        });
+        if (!isPickup && selectedShippingId) {
+          await addShippingMethod(medusaCartId, selectedShippingId);
+        }
+        cartPreparedRef.current = key;
+        console.log("[Prefetch] Cart updated + shipping added in background");
+      } catch (e) {
+        // Silent fail - will retry on submit
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [form.email, form.firstName, form.lastName, form.street, form.zip, form.city, form.country, isPickup, selectedShippingId, medusaCartId, step]);
+
   // Versandoptionen-Handler
   const handleShippingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const id = e.target.value;
@@ -258,11 +298,13 @@ function CheckoutPage() {
     }
   };
 
-  // handleMedusaCheckout – single API call: update + shipping + payment + complete
+  // handleMedusaCheckout – if prefetched, only complete; otherwise send all data
   const handleMedusaCheckout = async (cartId: string) => {
     try {
       setStep("processing");
       setProcessingSubStep("processing");
+
+      const isPrepared = !!cartPreparedRef.current;
 
       const address: MedusaAddress = {
         first_name: form.firstName,
@@ -274,8 +316,10 @@ function CheckoutPage() {
         phone: form.phone || undefined,
       };
 
-      // Single API call handles everything: update cart, add shipping, payment, complete
-      const order = await completeCart(cartId, {
+      // If prefetched, only send cart_id + payment_method (cart already updated)
+      const order = await completeCart(cartId, isPrepared ? {
+        payment_method: payment,
+      } : {
         email: form.email,
         shipping_address: isPickup ? undefined : address,
         billing_address: isPickup ? undefined : address,
@@ -342,31 +386,31 @@ function CheckoutPage() {
       setStep("processing");
       setProcessingSubStep("processing");
 
-      const address: MedusaAddress = {
-        first_name: form.firstName,
-        last_name: form.lastName,
-        address_1: form.street,
-        city: form.city,
-        postal_code: form.zip,
-        country_code: form.country.toLowerCase(),
-        phone: form.phone || undefined,
-      };
+      // If cart wasn't prefetch-updated, do it now
+      if (!cartPreparedRef.current) {
+        const address: MedusaAddress = {
+          first_name: form.firstName,
+          last_name: form.lastName,
+          address_1: form.street,
+          city: form.city,
+          postal_code: form.zip,
+          country_code: form.country.toLowerCase(),
+          phone: form.phone || undefined,
+        };
+        const updatedCart = await updateCart(cartId, {
+          email: form.email,
+          shipping_address: isPickup ? undefined : address,
+          billing_address: isPickup ? undefined : address,
+        });
+        if (!updatedCart) throw new Error("Warenkorb konnte nicht aktualisiert werden.");
 
-      // 1. Update cart
-      const updatedCart = await updateCart(cartId, {
-        email: form.email,
-        shipping_address: isPickup ? undefined : address,
-        billing_address: isPickup ? undefined : address,
-      });
-      if (!updatedCart) throw new Error("Warenkorb konnte nicht aktualisiert werden.");
-
-      // 2. Add shipping
-      if (!isPickup && selectedShippingId) {
-        const shippedCart = await addShippingMethod(cartId, selectedShippingId);
-        if (!shippedCart) throw new Error("Versandoption konnte nicht hinzugefügt werden.");
+        if (!isPickup && selectedShippingId) {
+          const shippedCart = await addShippingMethod(cartId, selectedShippingId);
+          if (!shippedCart) throw new Error("Versandoption konnte nicht hinzugefügt werden.");
+        }
       }
 
-      // 3. Create payment collection
+      // Payment collection was prefetched — just create it if somehow missing
       const paymentCollection = await createPaymentCollection(cartId);
       if (!paymentCollection) throw new Error("Zahlungssammlung konnte nicht erstellt werden.");
 
