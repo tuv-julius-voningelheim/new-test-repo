@@ -233,14 +233,20 @@ function CheckoutPage() {
     loadShippingOptions();
   }, [medusaCartId, isPickup, totalPrice]);
 
+  // Serialized cart operation lock to prevent concurrent mutations
+  const cartOpRef = useRef<Promise<void>>(Promise.resolve());
+
   // Prefetch: create payment collection as soon as checkout loads
   const prefetchedPayColRef = useRef<boolean>(false);
   useEffect(() => {
     if (!IS_BACKEND_ENABLED || !medusaCartId || prefetchedPayColRef.current) return;
     prefetchedPayColRef.current = true;
-    createPaymentCollection(medusaCartId).then((pc) => {
-      if (pc) console.log("[Prefetch] Payment collection ready:", pc.id);
-    }).catch(() => {});
+    // Queue behind any existing operation
+    cartOpRef.current = cartOpRef.current.then(() =>
+      createPaymentCollection(medusaCartId).then((pc) => {
+        if (pc) console.log("[Prefetch] Payment collection ready:", pc.id);
+      }).catch(() => {})
+    );
   }, [medusaCartId]);
 
   // Prefetch: update cart + add shipping in background when form is filled
@@ -258,7 +264,8 @@ function CheckoutPage() {
     if (cartPreparedRef.current === key) return;
 
     const timer = setTimeout(() => {
-      const p = (async () => {
+      // Queue behind payment collection creation
+      const p = cartOpRef.current.then(async () => {
       try {
         const address = {
           first_name: form.firstName,
@@ -283,7 +290,7 @@ function CheckoutPage() {
           shipping_address: isPickup ? pickupAddress : address,
           billing_address: isPickup ? pickupAddress : address,
         });
-        // Only add shipping if cart doesn't already have one or has a different one
+        // Only add shipping if cart has a different option
         const currentShippingOptionId = updatedCart?.shipping_methods?.[0]?.shipping_option_id;
         if (selectedShippingId && currentShippingOptionId !== selectedShippingId) {
           await addShippingMethod(medusaCartId, selectedShippingId);
@@ -295,7 +302,8 @@ function CheckoutPage() {
       } finally {
         prefetchingRef.current = null;
       }
-      })();
+      });
+      cartOpRef.current = p;
       prefetchingRef.current = p;
     }, 2500);
     prefetchTimerRef.current = timer;
@@ -839,10 +847,15 @@ function CheckoutPage() {
                     Versandart
                   </h2>
                   <div className="space-y-3">
-                    {[
-                      { id: "shipping" as const, label: "Versand", desc: totalPrice >= FREE_SHIPPING_MIN ? "Kostenloser Versand (ab 50 €)" : `Standardversand (${shippingCost.toFixed(2).replace(".", ",")} €)`, icon: Truck },
-                      { id: "pickup" as const, label: "Abholung vor Ort", desc: "Kostenlose Abholung", icon: Store },
-                    ].map((dm) => {
+                    {(() => {
+                      const opts = shippingOptionsCacheRef.current[medusaCartId || ""] || [];
+                      const stdOpt = opts.find((o: any) => o.amount > 0 && !o.name?.toLowerCase().includes("abhol"));
+                      const stdPrice = stdOpt ? stdOpt.amount : 5.9;
+                      return [
+                        { id: "shipping" as const, label: "Versand", desc: totalPrice >= FREE_SHIPPING_MIN ? "Kostenloser Versand (ab 50 €)" : `Standardversand (${stdPrice.toFixed(2).replace(".", ",")} €)`, icon: Truck },
+                        { id: "pickup" as const, label: "Abholung vor Ort", desc: "Kostenlose Abholung", icon: Store },
+                      ];
+                    })().map((dm) => {
                       const Icon = dm.icon;
                       const isActive = deliveryMethod === dm.id;
                       return (
