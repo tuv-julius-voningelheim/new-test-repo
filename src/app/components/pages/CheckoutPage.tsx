@@ -478,6 +478,13 @@ function CheckoutPage() {
   // --- PayPal: prepare cart and redirect to PayPal ---
   const handlePayPalCheckout = async (cartId: string) => {
     try {
+      // If PayPal session was already prefetched AND cart is prepared, skip directly
+      if (paypalOrderId && paypalCollectionId && paypalSessionId && paypalCartId && cartPreparedRef.current) {
+        console.log("[PayPal] Instant: reusing prefetched session:", paypalOrderId);
+        setStep("paypal-approve");
+        return;
+      }
+
       setStep("processing");
       setProcessingSubStep("processing");
 
@@ -513,7 +520,7 @@ function CheckoutPage() {
         }
       }
 
-      // If PayPal session was already prefetched, skip directly to approval
+      // If PayPal session was prefetched during processing, use it
       if (paypalOrderId && paypalCollectionId && paypalSessionId && paypalCartId) {
         console.log("[PayPal] Reusing prefetched session:", paypalOrderId);
         setStep("paypal-approve");
@@ -1248,8 +1255,8 @@ function CheckoutPage() {
                   {/* Pre-mount PayPal SDK provider when PayPal is selected */}
                   {payment === "paypal" && PAYPAL_CLIENT_ID && (
                     <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "EUR", intent: "capture" }}>
-                      {step === "paypal-approve" && paypalOrderId ? (
-                        <div className="space-y-3">
+                      {paypalOrderId ? (
+                        <div className="space-y-3" style={{ display: step === "paypal-approve" ? "block" : "none" }}>
                           <p className="text-sm text-center text-muted-foreground mb-2">
                             Bitte bestätige die Zahlung über PayPal:
                           </p>
