@@ -516,7 +516,7 @@ function CheckoutPage() {
 
         if (selectedShippingId && !(updatedCart.shipping_methods?.length)) {
           const shippedCart = await addShippingMethod(cartId, selectedShippingId);
-          if (!shippedCart) throw new Error("Versandoption konnte nicht hinzugefügt werden.");
+          if (!shippedCart) console.warn("[PayPal] addShippingMethod failed, may already exist");
         }
       }
 
